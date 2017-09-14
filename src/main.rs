@@ -30,13 +30,7 @@ struct MainConfig {
     log_config_path: Option<String>,
 }
 
-// #[derive(Serialize, Deserialize)]
-// struct Complex<T: Serialize + for<'de_inner> Deserialize<'de_inner>> {
-//     real: T,
-//     imag: T,
-// }
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Cpxf64 {
     real: f64,
     imag: f64,
@@ -59,7 +53,7 @@ fn run() -> Result<()> {
         simple_logger::init()
             .chain_err(|| "Unable to initialize default logger")?;
     }
-    
+
     // deserialize
     let selected_index_buf = file::get(&config.selected_index_path)
         .chain_err(|| "Unable to read selected index msgpack")?;
@@ -67,11 +61,15 @@ fn run() -> Result<()> {
     let selected_index: usize = rmp_serde::from_slice(&selected_index_buf[..])
         .chain_err(|| "Unable to deserialize into selected index")?;
 
+    info!("Selected index: {}", selected_index);
+
     let source_mat_buf = file::get(&config.source_mat_path)
         .chain_err(|| "Unable to read source estimate matrix msgpack")?;
 
     let source_mat: SourceMat = rmp_serde::from_slice(&source_mat_buf[..])
         .chain_err(|| "Unable to deserialize into source estimate matrix")?;
+
+    info!("Source matrix (RxC): {} x {}", source_mat.rows, source_mat.cols);
 
     // normalize to i16 (i32 write width) and flatten
     let offset = selected_index * source_mat.cols;
@@ -81,6 +79,8 @@ fn run() -> Result<()> {
         .flat_map(|cpx| vec![cpx.real, cpx.imag].into_iter())
         .collect();
 
+    info!("# of f64 values in selected row: {}", flattened_values.len());
+
     let max_value = flattened_values.iter()
         .max_by(|x, y| {
             x.abs()
@@ -89,11 +89,16 @@ fn run() -> Result<()> {
         })
         .ok_or_else(|| "Unable to find the max value in the source matrix")?;
 
+    info!("Max f64 absolute value: {}", max_value);
+
     let norm_values: Vec<i32> = flattened_values.iter()
         .map(|v| (v * (std::i16::MAX as f64) / max_value) as i32)
         .collect();
 
-    file::put(&config.output_path, unsafe { Box::from_raw(Box::into_raw(norm_values.into_boxed_slice()) as *mut [u8])})
+    const N: usize = 8;
+    info!("First {} normalized i16 values: {:?}", N, &norm_values[..N]);
+
+    file::put(&config.output_path, unsafe { std::slice::from_raw_parts(norm_values.as_ptr() as *const u8, norm_values.len() * 4) })
         .chain_err(|| format!("Unable to write sample into '{}'", config.output_path))?;
 
     Ok(())
