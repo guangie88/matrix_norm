@@ -1,0 +1,16 @@
+[package]
+name = "matrix_norm"
+version = "0.1.0"
+authors = ["guangie"]
+
+[dependencies]
+error-chain = "=0.11.0"
+file = "=1.1.1"
+log = "=0.3.8"
+log4rs = "=0.7.0"
+rmp-serde = "=0.13.7"
+serde = "=1.0.14"
+serde_derive = "=1.0.14"
+simple_logger = "=0.4.0"
+structopt = "=0.1.0"
+structopt-derive = "=0.1.0"
